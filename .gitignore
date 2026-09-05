@@ -7,3 +7,12 @@ node_modules/
 dist/
 *.pem
 *.key
+.vercel/
+
+# Java crash logs
+hs_err_pid*.log
+replay_pid*.log
+
+# Local development folders
+.kilo/
+.vscode/

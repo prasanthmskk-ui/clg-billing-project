@@ -1,25 +1,18 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 import mysql.connector
 from mysql.connector import Error
 import os
 from pathlib import Path
 
-def load_env():
-    env_path = Path(__file__).resolve().parents[2] / '.env'
-    if not env_path.exists():
-        return
-    for line in env_path.read_text(encoding='utf-8').splitlines():
-        line = line.strip()
-        if not line or line.startswith('#') or '=' not in line:
-            continue
-        key, _, value = line.partition('=')
-        value = value.strip().strip('"').strip("'")
-        os.environ.setdefault(key.strip(), value)
+from dotenv import load_dotenv
 
-load_env()
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / '.env')
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
 configured_origins = os.environ.get(
     'CORS_ORIGINS',
     'http://localhost:5173,http://127.0.0.1:5173,https://localhost:5173,https://127.0.0.1:5173',
