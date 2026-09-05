@@ -32,7 +32,7 @@ db_config = {
     'port': int(os.environ.get('DB_PORT', '3306')),
     'database': os.environ.get('DB_NAME', 'billing_db'),
     'user': os.environ.get('DB_USER', 'root'),
-    'password': os.environ.get('DB_PASSWORD', 'prasa@123'),
+    'password': os.environ.get('DB_PASSWORD', ''),
     'connection_timeout': int(os.environ.get('DB_CONNECTION_TIMEOUT', '5')),
 }
 
@@ -155,6 +155,6 @@ def health():
 if __name__ == '__main__':
     app.run(
         host=os.environ.get('BACKEND_HOST', '0.0.0.0'),
-        port=int(os.environ.get('BACKEND_PORT', '5000')),
+        port=int(os.environ.get('PORT', os.environ.get('BACKEND_PORT', '5000'))),
         debug=os.environ.get('FLASK_DEBUG', '').lower() == 'true',
     )

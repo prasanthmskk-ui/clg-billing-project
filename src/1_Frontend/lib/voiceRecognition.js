@@ -4,14 +4,33 @@ export const TAMIL_VOICE_LANGUAGE = 'ta-IN'
 export const ENGLISH_VOICE_LANGUAGE = 'en-US'
 export const VOICE_LANGUAGES = [TAMIL_VOICE_LANGUAGE, ENGLISH_VOICE_LANGUAGE]
 
-const TAMIL_PHONETIC_VARIANTS = ['paal', 'pal', 'paul', 'pall', 'paal', 'பால்']
+const TAMIL_PHONETIC_VARIANTS = ['paal', 'pal', 'paul', 'pall', 'பால்', 'மில்க்']
 const VOICE_PRODUCT_MAP = {
-  milk: 'MILK',
-  pal: 'பால்',
-  paal: 'பால்',
-  paul: 'பால்',
-  pall: 'பால்',
-  'பால்': 'பால்',
+  milk: 'milk',
+  'மில்க்': 'milk',
+  'பால்': 'milk',
+  paal: 'milk',
+  pal: 'milk',
+  paul: 'milk',
+  pall: 'milk',
+  rice: 'rice',
+  அரிசி: 'rice',
+  sugar: 'sugar',
+  சர்க்கரை: 'sugar',
+  salt: 'salt',
+  உப்பு: 'salt',
+  oil: 'oil',
+  எண்ணெய்: 'oil',
+  tea: 'tea',
+  தேநீர்: 'tea',
+  coffee: 'coffee',
+  காபி: 'coffee',
+}
+
+export function getVoiceLanguages(currentLanguage) {
+  return currentLanguage === 'ta'
+    ? [TAMIL_VOICE_LANGUAGE, ENGLISH_VOICE_LANGUAGE]
+    : [ENGLISH_VOICE_LANGUAGE, TAMIL_VOICE_LANGUAGE]
 }
 
 export function mapVoiceProduct(text) {

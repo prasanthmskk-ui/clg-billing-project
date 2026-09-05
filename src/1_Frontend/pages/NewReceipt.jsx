@@ -6,7 +6,7 @@ import AddedItems from '../components/AddedItems'
 import SummaryPanel from '../components/SummaryPanel'
 import CustomerDetailsModal from '../components/CustomerDetailsModal'
 import { useLanguage } from '../i18n'
-import { createBilingualRecognition, getSpeechRecognition, VOICE_UNSUPPORTED, VOICE_INSECURE } from '../lib/voiceRecognition'
+import { createBilingualRecognition, getSpeechRecognition, getVoiceLanguages, VOICE_UNSUPPORTED, VOICE_INSECURE } from '../lib/voiceRecognition'
 import { apiFetch } from '../utils/api'
 import { addOrIncrementCart } from '../utils/cart'
 
@@ -163,7 +163,7 @@ export default function NewReceipt({ cart, setCart, savedItems }) {
         onEnd()
         },
         onEnd,
-      }, [language === 'ta' ? 'ta-IN' : 'en-US'])
+      }, getVoiceLanguages(language))
     },
     [language, t, showToast]
   )

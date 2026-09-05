@@ -1,7 +1,16 @@
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
+const API_BASE = String(import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '')
+
+function buildApiUrl(path) {
+  const normalizedPath = `/${String(path || '').replace(/^\/+/, '')}`
+  return API_BASE ? `${API_BASE}${normalizedPath}` : normalizedPath
+}
 
 export async function apiFetch(path, options = {}) {
-  const url = `${API_BASE}${path}`
+  if (import.meta.env.PROD && !API_BASE) {
+    throw new Error('VITE_API_URL is not configured for the production build.')
+  }
+
+  const url = buildApiUrl(path)
   try {
     const response = await fetch(url, {
       ...options,

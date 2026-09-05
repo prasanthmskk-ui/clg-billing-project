@@ -2,7 +2,7 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, PackagePlus, Check, Pencil, Search, X, Mic } from 'lucide-react'
 import { useLanguage } from '../i18n'
-import { createBilingualRecognition, getSpeechRecognition, VOICE_INSECURE } from '../lib/voiceRecognition'
+import { createBilingualRecognition, getSpeechRecognition, getVoiceLanguages, VOICE_INSECURE } from '../lib/voiceRecognition'
 import { addOrIncrementCart } from '../utils/cart'
 
 export default function AddItem({ savedItems, setSavedItems, setCart }) {
@@ -65,10 +65,10 @@ export default function AddItem({ savedItems, setSavedItems, setCart }) {
       },
       onError: () => setIsListening(false),
       onEnd: () => setIsListening(false),
-    }, [language === 'ta' ? 'ta-IN' : 'en-US'])
+    }, getVoiceLanguages(language))
     recognitionRef.current = session
     setIsListening(session.recognitions.length > 0)
-  }, [voiceAvailable, voiceMessage, t])
+  }, [language, voiceAvailable, voiceMessage, t])
 
   const stopListening = React.useCallback(() => {
     if (recognitionRef.current) {

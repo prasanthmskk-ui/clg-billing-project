@@ -134,9 +134,9 @@ export default function AddProduct(props) {
     }
 
     const recognitionLanguages = field === 'tamil'
-      ? [TAMIL_VOICE_LANGUAGE]
+      ? [TAMIL_VOICE_LANGUAGE, ENGLISH_VOICE_LANGUAGE]
       : field === 'english'
-        ? [ENGLISH_VOICE_LANGUAGE]
+        ? [ENGLISH_VOICE_LANGUAGE, TAMIL_VOICE_LANGUAGE]
         : VOICE_LANGUAGES
 
     const session = createBilingualRecognition(SpeechRecognition, {
