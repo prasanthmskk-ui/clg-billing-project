@@ -17,6 +17,16 @@ export const PREPROCESS_DEFAULTS = {
   quality: 0.82,
 }
 
+export const PREPROCESS_LABEL_DEFAULTS = {
+  maxWidth: 1000,
+  maxHeight: 1000,
+  contrast: 1.8,
+  brightness: 10,
+  threshold: null,
+  outputType: 'image/jpeg',
+  quality: 0.9,
+}
+
 function loadSource(source) {
   return new Promise((resolve, reject) => {
     if (source instanceof HTMLCanvasElement || source instanceof OffscreenCanvas) {
@@ -25,20 +35,18 @@ function loadSource(source) {
     }
     const img = new Image()
     img.crossOrigin = 'anonymous'
-    img.onload = () => resolve(img)
+    let objectUrl = null
+    img.onload = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      resolve(img)
+    }
     img.onerror = (e) => reject(e)
-    img.src = source instanceof Blob ? URL.createObjectURL(source) : source
+    objectUrl = source instanceof Blob ? URL.createObjectURL(source) : null
+    img.src = objectUrl || source
   })
 }
 
-function computeOtsuThreshold(data) {
-  const histogram = new Array(256).fill(0)
-  let total = 0
-  for (let i = 0; i < data.length; i += 4) {
-    const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) | 0
-    histogram[gray]++
-    total++
-  }
+function computeOtsuThreshold(histogram, total) {
   let sum = 0
   for (let t = 0; t < 256; t++) sum += t * histogram[t]
   let sumB = 0
@@ -81,6 +89,7 @@ export async function preprocessImage(source, options = {}) {
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) throw new Error('Canvas rendering is unavailable')
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(img, 0, 0, width, height)
@@ -90,10 +99,16 @@ export async function preprocessImage(source, options = {}) {
   const factor = cfg.contrast
   const intercept = cfg.brightness
 
+  const histogram = cfg.threshold == null ? new Array(256).fill(0) : null
+  let pixelCount = 0
   for (let i = 0; i < data.length; i += 4) {
     let gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
     gray = factor * (gray - 128) + 128 + intercept
     gray = gray < 0 ? 0 : gray > 255 ? 255 : gray
+    if (histogram) {
+      histogram[gray | 0]++
+      pixelCount++
+    }
     let v = gray
     if (cfg.threshold != null) {
       v = gray > cfg.threshold ? 255 : 0
@@ -102,7 +117,7 @@ export async function preprocessImage(source, options = {}) {
   }
 
   if (cfg.threshold == null) {
-    const threshold = computeOtsuThreshold(data)
+    const threshold = computeOtsuThreshold(histogram, pixelCount)
     for (let i = 0; i < data.length; i += 4) {
       const v = data[i] > threshold ? 255 : 0
       data[i] = data[i + 1] = data[i + 2] = v
@@ -119,15 +134,16 @@ export async function preprocessImage(source, options = {}) {
  */
 export async function cropRegion(source, region, options = {}) {
   const img = await loadSource(source)
-  const sx = Math.round(img.width * region.x)
-  const sy = Math.round(img.height * region.y)
-  const sw = Math.round(img.width * region.w)
-  const sh = Math.round(img.height * region.h)
+  const sx = Math.max(0, Math.round(img.width * region.x))
+  const sy = Math.max(0, Math.round(img.height * region.y))
+  const sw = Math.max(1, Math.min(img.width - sx, Math.round(img.width * region.w)))
+  const sh = Math.max(1, Math.min(img.height - sy, Math.round(img.height * region.h)))
 
   const canvas = document.createElement('canvas')
   canvas.width = sw
   canvas.height = sh
   const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas rendering is unavailable')
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh)
   return preprocessImage(canvas, options)
 }

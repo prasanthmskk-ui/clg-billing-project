@@ -1,8 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#fff7f8" />
-  <g transform="translate(8 8)" fill="none" stroke="#16a34a" stroke-width="2">
-    <rect x="2" y="2" width="44" height="44" rx="8" fill="#ffffff" stroke="none" />
-    <path d="M8 22v-8a4 4 0 014-4h12" stroke="#f97316" stroke-width="2.8" fill="none" />
-  </g>
-  <text x="50%" y="75%" font-family="Inter, Arial, sans-serif" font-size="18" text-anchor="middle" fill="#111827">SB</text>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#9333ea"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <path d="M36 10 L18 36 L30 36 L26 54 L46 28 L34 28 Z" fill="#ffffff" opacity="0.95"/>
+  <text x="50%" y="62%" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800" text-anchor="middle" fill="#ffffff">4</text>
 </svg>

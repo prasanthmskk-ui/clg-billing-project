@@ -32,6 +32,34 @@ export function cleanText(rawText) {
 }
 
 /**
+ * Extract a price-like number from OCR text.
+ * Matches patterns like: Rs. 20.00, ₹20, 20.00, 20/-, 20
+ * @returns {{ price: number | null }}
+ */
+export function extractPrice(text) {
+  if (!text || !text.trim()) return { price: null }
+  const cleaned = text.replace(/[^\d.,/-]/g, ' ').trim()
+  if (!cleaned) return { price: null }
+
+  const parts = cleaned.split(/\s+/)
+  for (const part of parts) {
+    const normalized = part.replace(/[,-/]/g, '')
+    if (/^\d+(\.\d{1,2})?$/.test(normalized)) {
+      const num = Number(normalized)
+      if (num > 0 && num < 100000) return { price: num }
+    }
+  }
+
+  const allNumbers = cleaned.match(/\d+(\.\d{1,2})?/g)
+  if (allNumbers) {
+    const nums = allNumbers.map(Number).filter((n) => n > 0 && n < 100000)
+    if (nums.length) return { price: nums[0] }
+  }
+
+  return { price: null }
+}
+
+/**
  * Parse OCR text into { name, nameSource, confidence }.
  * Returns exact extracted text without forced catalog matching.
  *

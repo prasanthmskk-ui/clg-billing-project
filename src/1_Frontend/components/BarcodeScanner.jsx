@@ -5,9 +5,9 @@ import {
 } from "@zxing/library";
 
 const SCAN_FPS = 15;
-const SCAN_BOX_RATIO = 0.6; // centered scanning area: 60% of width & height
+const SCAN_BOX_RATIO = 0.6;
 
-const BarcodeScanner = ({ isOpen, onClose, onScan }) => {
+function BarcodeScanner({ isOpen, onClose, onScan }) {
   const [errorMsg, setErrorMsg] = useState("");
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
@@ -20,7 +20,7 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }) => {
       try {
         codeReaderRef.current.reset();
       } catch (e) {
-        console.error("Failed to reset code reader:", e);
+        // non-fatal: scanner may already be torn down
       }
       codeReaderRef.current = null;
     }
@@ -37,7 +37,6 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }) => {
     scanningRef.current = true;
 
     const startScanner = async () => {
-      // 1. Verify browser supports the required Web APIs
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         if (scanningRef.current) {
           setErrorMsg("Camera access is not supported in this browser.");
@@ -62,7 +61,6 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }) => {
         return;
       }
 
-      // 2. Open the camera at a higher resolution for sharper barcodes.
       const constraints = {
         video: {
           facingMode: { ideal: "environment" },
@@ -112,7 +110,11 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }) => {
         }
       }
 
-      // 2b. Enable continuous autofocus when the camera reports support.
+      if (!scanningRef.current) {
+        stream?.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       try {
         const track = stream.getVideoTracks()[0];
         if (track && typeof track.applyConstraints === "function") {
@@ -125,13 +127,10 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }) => {
         }
       } catch (focusErr) {
         // Non-fatal: continuous focus is a best-effort enhancement.
-        console.warn("Continuous focus could not be applied:", focusErr);
       }
 
       streamRef.current = stream;
 
-      // 3. Decode locally with ZXing. Lower the delay between scan attempts
-      //    (~SCAN_FPS) and restrict decoding to a centered box for accuracy.
       const scanIntervalMs = Math.round(1000 / SCAN_FPS);
       const codeReader = new BrowserMultiFormatReader(
         undefined,
@@ -140,8 +139,6 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }) => {
       codeReader.timeBetweenDecodingAttempts = scanIntervalMs;
       codeReaderRef.current = codeReader;
 
-      // 3b. Crop the frame to the center box and zoom it to fill the capture
-      //     canvas so the decoder only sees the relevant region.
       codeReader.drawFrameOnCanvas = function (srcElement, _dims, ctx) {
         const context = ctx || this.captureCanvasContext;
         const vw = srcElement.videoWidth;
@@ -168,32 +165,36 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }) => {
 
           if (result) {
             handleScanSuccess(result.getText().trim());
-          } else if (error && !(error instanceof NotFoundException)) {
-            console.error("ZXing decode error:", error);
+          } else if (error && !isExpectedDecodeError(error)) {
+            setErrorMsg("Barcode scanning stopped unexpectedly.");
           }
         });
       } catch (decodeErr) {
         if (scanningRef.current) {
-          setErrorMsg(
-            "Failed to start barcode scanning: " +
-              (decodeErr.message || String(decodeErr))
-          );
+          setErrorMsg(isExpectedDecodeError(decodeErr)
+            ? "No barcode detected. Try holding the camera steady."
+            : "Failed to start barcode scanning. Please try again.");
         }
         stopScanner();
       }
     };
 
-    startScanner();
+    startScanner().catch(() => {
+      if (scanningRef.current) {
+        setErrorMsg("Unable to start barcode scanning. Please try again.");
+        stopScanner();
+      }
+    });
 
     return () => {
       stopScanner();
     };
-  }, [isOpen]);
+  }, [isOpen, onClose, onScan]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay">
+    <div className="print:hidden modal-overlay">
       <div className="modal-content">
         <h3>Scan Barcode</h3>
         {errorMsg ? (
@@ -241,6 +242,12 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }) => {
       </div>
     </div>
   );
-};
+}
 
-export default BarcodeScanner;
+function isExpectedDecodeError(error) {
+  if (error instanceof NotFoundException) return true;
+  const name = error?.name || error?.constructor?.name;
+  return name === 'ChecksumException' || name === 'FormatException' || name === 'NotFoundException';
+}
+
+export default React.memo(BarcodeScanner);

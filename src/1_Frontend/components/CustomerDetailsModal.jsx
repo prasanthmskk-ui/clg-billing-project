@@ -1,7 +1,7 @@
 import React from 'react'
 import { useLanguage } from '../i18n'
 
-export default function CustomerDetailsModal({ isOpen, onClose, onSave, onSaveAndPrint }) {
+function CustomerDetailsModal({ isOpen, onClose, onSave, onSaveAndPrint }) {
   const { t } = useLanguage()
   const [customerName, setCustomerName] = React.useState('')
   const [phoneNumber, setPhoneNumber] = React.useState('')
@@ -24,7 +24,7 @@ export default function CustomerDetailsModal({ isOpen, onClose, onSave, onSaveAn
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="print:hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900">
@@ -98,3 +98,5 @@ export default function CustomerDetailsModal({ isOpen, onClose, onSave, onSaveAn
     </div>
   )
 }
+
+export default React.memo(CustomerDetailsModal)

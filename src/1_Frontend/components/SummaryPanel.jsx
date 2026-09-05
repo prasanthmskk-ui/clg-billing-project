@@ -1,25 +1,41 @@
 import React from 'react'
-import { Printer, Trash2 } from 'lucide-react'
+import { Printer, Trash2, ShoppingBag } from 'lucide-react'
 import { useLanguage } from '../i18n'
 
-export default function SummaryPanel({ total = 0, onDelete, onPaySave }) {
+function SummaryPanel({ total = 0, onDelete, onPaySave, className }) {
   const { t } = useLanguage()
   const isEmpty = total <= 0
 
   return (
-    <div className="bg-white rounded-t-3xl p-4 shadow-inner">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-sm text-gray-600">{t('total')}:</div>
-        <div className="text-2xl font-bold">₹{total.toFixed(2)}</div>
+    <div className={`app-summary-panel print:hidden bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] rounded-t-3xl z-10 ${className || ''}`}>
+      {/* Total Amount Section */}
+      <div className="px-5 pt-4 pb-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-t-3xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShoppingBag size={20} className="text-gray-500" />
+            <span className="text-sm font-medium text-gray-600 uppercase tracking-wide">
+              {t('total')}
+            </span>
+          </div>
+          <div className="text-3xl font-extrabold text-gray-900 tracking-tight">
+            ₹{total.toFixed(2)}
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      {/* Action Buttons */}
+      <div className="px-5 pb-4 pt-2 flex items-center gap-3">
         <button
           type="button"
           onClick={onDelete}
-          className="flex min-w-0 flex-[0.9] items-center justify-center gap-2 rounded-full border border-red-300 bg-white px-3 py-3 text-sm font-medium text-red-500 shadow-sm"
+          disabled={isEmpty}
+          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-semibold transition-all ${
+            isEmpty
+              ? 'cursor-not-allowed bg-gray-100 text-gray-400'
+              : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 active:scale-95'
+          }`}
         >
-          <Trash2 size={16} className="text-red-500" />
+          <Trash2 size={18} />
           <span>{t('delete')}</span>
         </button>
 
@@ -27,16 +43,18 @@ export default function SummaryPanel({ total = 0, onDelete, onPaySave }) {
           type="button"
           onClick={isEmpty ? undefined : onPaySave}
           disabled={isEmpty}
-          className={`flex min-w-0 flex-[1.8] items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition ${
+          className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-base font-bold transition-all ${
             isEmpty
-              ? 'cursor-not-allowed bg-[#eef0f2] text-gray-400'
-              : 'bg-[#eef0f2] text-gray-700 shadow-sm'
+              ? 'cursor-not-allowed bg-gray-100 text-gray-400'
+              : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-400/40 hover:shadow-xl hover:from-indigo-600 hover:to-purple-700 active:scale-[0.98]'
           }`}
         >
-          <Printer size={16} className={isEmpty ? 'text-gray-400' : 'text-gray-600'} />
-          <span className="whitespace-nowrap">{t('paySave')}</span>
+          <Printer size={20} />
+          <span>{t('paySave')}</span>
         </button>
       </div>
     </div>
   )
 }
+
+export default React.memo(SummaryPanel)

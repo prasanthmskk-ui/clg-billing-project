@@ -1,9 +1,10 @@
 import React from 'react'
+import { createPortal } from 'react-dom'
 
-export default function PrintableInvoice({ selectedReceipt }) {
+function PrintableInvoice({ selectedReceipt }) {
   if (!selectedReceipt || !selectedReceipt.items || selectedReceipt.items.length === 0) return null
 
-  return (
+  return createPortal(
     <div className="printable-invoice" id="printable-invoice">
       <h1 className="inv-main-title">INVOICE</h1>
 
@@ -48,6 +49,9 @@ export default function PrintableInvoice({ selectedReceipt }) {
       <div className="inv-note">
         <p><em>Thank you for your business!</em></p>
       </div>
-    </div>
+    </div>,
+    document.getElementById('print-portal')
   )
 }
+
+export default React.memo(PrintableInvoice)

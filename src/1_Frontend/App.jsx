@@ -1,10 +1,11 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { LanguageProvider } from './i18n'
-import NewReceipt from './pages/NewReceipt'
-import AddProduct from './pages/AddProduct'
-import AddItem from './pages/AddItem'
-import SavedReceipts from './pages/SavedReceipts'
+
+const NewReceipt = React.lazy(() => import('./pages/NewReceipt'))
+const AddProduct = React.lazy(() => import('./pages/AddProduct'))
+const AddItem = React.lazy(() => import('./pages/AddItem'))
+const SavedReceipts = React.lazy(() => import('./pages/SavedReceipts'))
 
 const STORAGE_KEY = 'smartbiller_products'
 
@@ -30,13 +31,13 @@ export default function App() {
   const [cart, setCart] = React.useState([])
   const [savedItems, setSavedItems] = React.useState(() => loadSavedItems())
 
-  const handleProductSaved = (product, editingId) => {
+  const handleProductSaved = React.useCallback((product, editingId) => {
     if (editingId) {
       setSavedItems((prev) => prev.map((item) => (item.id === editingId ? product : item)))
     } else {
       setSavedItems((prev) => [...prev, product])
     }
-  }
+  }, [])
 
   React.useEffect(() => {
     const handleStorageChange = (e) => {
@@ -68,14 +69,21 @@ export default function App() {
 
   return (
     <LanguageProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/new-receipt" replace />} />
-          <Route path="/new-receipt" element={<NewReceipt cart={cart} setCart={setCart} savedItems={savedItems} />} />
-          <Route path="/add-product" element={<AddProduct onProductSaved={handleProductSaved} existingProducts={savedItems} />} />
-          <Route path="/add-item" element={<AddItem savedItems={savedItems} setSavedItems={setSavedItems} setCart={setCart} />} />
-          <Route path="/saved-receipts" element={<SavedReceipts />} />
-        </Routes>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <React.Suspense fallback={<div className="route-loading" role="status" aria-live="polite" />}>
+          <Routes>
+            <Route path="/" element={<Navigate to="/new-receipt" replace />} />
+            <Route path="/new-receipt" element={<NewReceipt cart={cart} setCart={setCart} savedItems={savedItems} />} />
+            <Route path="/add-product" element={<AddProduct onProductSaved={handleProductSaved} existingProducts={savedItems} />} />
+            <Route path="/add-item" element={<AddItem savedItems={savedItems} setSavedItems={setSavedItems} setCart={setCart} />} />
+            <Route path="/saved-receipts" element={<SavedReceipts />} />
+          </Routes>
+        </React.Suspense>
       </BrowserRouter>
     </LanguageProvider>
   )

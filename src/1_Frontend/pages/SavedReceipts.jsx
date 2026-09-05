@@ -3,28 +3,56 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronUp, Search, ArrowLeft, Receipt } from 'lucide-react'
 import { useLanguage } from '../i18n'
 import PrintableInvoice from '../components/PrintableInvoice'
+import { apiFetch, getLocalStorageReceipts } from '../utils/api'
 
 export default function SavedReceipts() {
   const navigate = useNavigate()
   const { t } = useLanguage()
   const [receipts, setReceipts] = React.useState([])
   const [search, setSearch] = React.useState('')
+  const deferredSearch = React.useDeferredValue(search)
   const [loading, setLoading] = React.useState(true)
+  const [serverUnavailable, setServerUnavailable] = React.useState(false)
   const [expandedId, setExpandedId] = React.useState(null)
   const [printReceipt, setPrintReceipt] = React.useState(null)
   const [printReady, setPrintReady] = React.useState(false)
 
   React.useEffect(() => {
-    try {
-      const stored = localStorage.getItem('saved_receipts')
-      const data = stored ? JSON.parse(stored) : []
-      setReceipts(Array.isArray(data) ? data : [])
-    } catch (err) {
-      console.error('Failed to load receipts from LocalStorage:', err)
-      setReceipts([])
-    } finally {
-      setLoading(false)
+    const fetchReceipts = async () => {
+      setLoading(true)
+      setServerUnavailable(false)
+      try {
+        const response = await apiFetch('/api/receipts')
+        const data = await response.json()
+        const usingLocalFallback = response.headers.get('X-Database-Fallback') === 'local'
+        setReceipts(usingLocalFallback ? getLocalStorageReceipts() : (Array.isArray(data) ? data : []))
+      } catch (err) {
+        console.warn('Server unavailable; loading receipts from LocalStorage:', err.message)
+        setReceipts(getLocalStorageReceipts())
+        setServerUnavailable(true)
+      } finally {
+        setLoading(false)
+      }
     }
+
+    fetchReceipts()
+  }, [])
+
+  const retryFetch = React.useCallback(() => {
+    setLoading(true)
+    setServerUnavailable(false)
+    apiFetch('/api/receipts')
+      .then(async (response) => {
+        const data = await response.json()
+        const usingLocalFallback = response.headers.get('X-Database-Fallback') === 'local'
+        setReceipts(usingLocalFallback ? getLocalStorageReceipts() : (Array.isArray(data) ? data : []))
+      })
+      .catch((err) => {
+        console.warn('Retry failed:', err.message)
+        setReceipts(getLocalStorageReceipts())
+        setServerUnavailable(true)
+      })
+      .finally(() => setLoading(false))
   }, [])
 
   React.useEffect(() => {
@@ -43,12 +71,12 @@ export default function SavedReceipts() {
     }
   }, [printReady])
 
-  const filteredReceipts = receipts.filter((receipt) => {
-    const query = search.toLowerCase()
+  const filteredReceipts = React.useMemo(() => receipts.filter((receipt) => {
+    const query = deferredSearch.toLowerCase()
     const name = (receipt.customer_name || '').toLowerCase()
     const phone = (receipt.phone_number || '').toLowerCase()
     return name.includes(query) || phone.includes(query)
-  })
+  }), [receipts, deferredSearch])
 
   const formatDate = (dateString) => {
     if (!dateString) return ''
@@ -77,7 +105,7 @@ export default function SavedReceipts() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="saved-receipts-page print:hidden min-h-screen flex flex-col bg-slate-50">
       <header className="flex items-center gap-3 px-4 py-3">
         <button
           onClick={() => navigate('/new-receipt')}
@@ -88,7 +116,7 @@ export default function SavedReceipts() {
         <h1 className="text-lg font-bold text-gray-900">சேமித்த ரசீதுகள்</h1>
       </header>
 
-      <main className="flex-1 p-4">
+      <main className="saved-receipts-main flex-1 p-4">
         <div className="mb-4">
           <div className="relative">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -104,7 +132,19 @@ export default function SavedReceipts() {
 
         {loading ? (
           <div className="flex items-center justify-center h-40">
-            <p className="text-slate-500">Loading...</p>
+            <p className="text-slate-500">Loading receipts...</p>
+          </div>
+        ) : serverUnavailable ? (
+          <div className="mx-auto flex max-w-md flex-col items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+            <p className="font-semibold text-amber-800">Billing server unavailable</p>
+            <p className="mt-1 text-sm text-amber-700">Showing locally saved receipts. Start the app with `npm run dev` and retry.</p>
+            <button
+              type="button"
+              onClick={retryFetch}
+              className="mt-4 rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white transition hover:bg-amber-700"
+            >
+              Retry connection
+            </button>
           </div>
         ) : filteredReceipts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[50vh] text-center">
@@ -117,6 +157,8 @@ export default function SavedReceipts() {
           <div className="space-y-3">
             {filteredReceipts.map((receipt) => {
               const isExpanded = expandedId === receipt.id
+              const customerName = receipt.customer_name?.trim() || 'Guest'
+              const customerPhone = receipt.phone_number?.trim()
               return (
                 <div
                   key={receipt.id}
@@ -128,10 +170,10 @@ export default function SavedReceipts() {
                     className="w-full flex items-center justify-between p-4 text-left"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-base font-bold text-slate-900 truncate">
-                        {receipt.customer_name} ({receipt.phone_number})
+                      <p className="receipt-card-title text-base font-bold text-slate-900 truncate">
+                        {customerName}{customerPhone ? ` (${customerPhone})` : ''}
                       </p>
-                      <p className="text-sm text-slate-500">
+                      <p className="receipt-card-meta text-sm text-slate-500">
                         தேதி: {formatDate(receipt.created_at || receipt.date)} | மொத்தம்: ₹{Number(receipt.total_amount || receipt.totalAmount).toFixed(2)}
                       </p>
                     </div>

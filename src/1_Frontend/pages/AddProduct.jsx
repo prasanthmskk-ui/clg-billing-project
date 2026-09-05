@@ -1,10 +1,49 @@
 import React from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Camera, Save, ScanLine, Sparkles, X, Loader, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Camera, Save, ScanLine, Sparkles, X, Loader, CheckCircle, Mic, MicOff } from 'lucide-react'
 import { useLanguage } from '../i18n'
-import BarcodeScanner from '../components/BarcodeScanner'
-import { useOcr } from '../../lib/ocr/useOcr'
+import { useOcr } from '../../lib/ocr/useOcr.jsx'
 import { transliterateToTamil } from '../../lib/ocr/transliterate'
+import { createBilingualRecognition, getSpeechRecognition, isTamilText, mapTamilPhonetic, TAMIL_VOICE_LANGUAGE, ENGLISH_VOICE_LANGUAGE, VOICE_INSECURE, VOICE_LANGUAGES } from '../lib/voiceRecognition'
+
+const BarcodeScanner = React.lazy(() => import('../components/BarcodeScanner'))
+
+const COMMON_DICTIONARY = {
+  milk: 'பால்',
+  rice: 'அரிசி',
+  sugar: 'சர்க்கரை',
+  salt: 'உப்பு',
+  oil: 'எண்ணெய்',
+  dal: 'பருப்பு',
+  wheat: 'கோதுமை',
+  tea: 'தேநீர்',
+  coffee: 'காபி',
+  water: 'நீர்',
+  biscuit: 'பிஸ்கட்',
+  bread: 'ரொட்டி',
+  egg: 'முட்டை',
+  chicken: 'கோழி',
+  apple: 'ஆப்பிள்',
+  banana: 'வாழை',
+  mango: 'மாம்பழம்',
+  orange: 'ஆரஞ்சு',
+  soap: 'சோப்பு',
+  shampoo: 'ஷாம்பு',
+}
+
+const getImmediateTamilName = (text) => {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ')
+  return COMMON_DICTIONARY[normalized] || transliterateToTamil(text)
+}
+
+const getImmediateEnglishName = (text) => {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ')
+  const match = Object.entries(COMMON_DICTIONARY).find(([, tamil]) => (
+    tamil.toLowerCase().replace(/\s+/g, ' ') === normalized
+  ))
+  if (!match) return ''
+  return match[0].charAt(0).toUpperCase() + match[0].slice(1)
+}
 
 export default function AddProduct(props) {
   const navigate = useNavigate()
@@ -22,98 +61,295 @@ export default function AddProduct(props) {
   const [showScanner, setShowScanner] = React.useState(false)
   const [toast, setToast] = React.useState('')
   const frontCameraRef = React.useRef(null)
-   const backCameraRef = React.useRef(null)
-    const tamilDebounceRef = React.useRef(null)
-    const englishDebounceRef = React.useRef(null)
-    const latestTamilRequest = React.useRef(0)
-    const latestEnglishRequest = React.useRef(0)
-    const translationCacheRef = React.useRef(new Map())
+  const backCameraRef = React.useRef(null)
+  const tamilDebounceRef = React.useRef(null)
+  const englishDebounceRef = React.useRef(null)
+  const latestTamilRequest = React.useRef(0)
+  const latestEnglishRequest = React.useRef(0)
+  const translationCacheRef = React.useRef(new Map())
+  const recognitionRef = React.useRef(null)
+  const toastTimeoutRef = React.useRef(null)
+  const navigationTimeoutRef = React.useRef(null)
+  const [isListening, setIsListening] = React.useState(false)
+  const [listeningField, setListeningField] = React.useState(null)
 
-   const resetForm = () => {
-     setProductName('')
-     setTamilName('')
-     setPrice('')
-     setBarcode('')
-     setFrontPhoto(null)
-     setBackPhoto(null)
-   }
+  const { ctor: SpeechRecognitionCtor, reason: speechReason } = React.useMemo(
+    () => getSpeechRecognition(),
+    []
+  )
+  const isSpeechSupported = Boolean(SpeechRecognitionCtor)
 
-     const translateToTamil = (text) => {
-       if (!text.trim()) {
-         setTamilName('')
-         return
-       }
+  const voiceMessage = React.useMemo(() => {
+    if (!speechReason) return ''
+    return speechReason === VOICE_INSECURE ? t('voiceRequiresHttps') : t('voiceNotSupported')
+  }, [speechReason, t])
 
-       const requestId = ++latestTamilRequest.current
-       clearTimeout(tamilDebounceRef.current)
+  const showToast = React.useCallback((message, duration = 3000) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current)
+    }
+    setToast(message)
+    toastTimeoutRef.current = setTimeout(() => setToast(''), duration)
+  }, [])
 
-       tamilDebounceRef.current = setTimeout(async () => {
-         const cacheKey = `ta|${text}`
-         const cached = translationCacheRef.current.get(cacheKey)
-         if (cached !== undefined) {
-           if (requestId === latestTamilRequest.current) {
-             setTamilName(cached)
-           }
-           return
-         }
+  React.useEffect(() => () => {
+    clearTimeout(tamilDebounceRef.current)
+    clearTimeout(englishDebounceRef.current)
+    clearTimeout(toastTimeoutRef.current)
+    clearTimeout(navigationTimeoutRef.current)
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort() } catch (_) {}
+      recognitionRef.current = null
+    }
+  }, [])
 
-         try {
-           if (!navigator.onLine) throw new Error('offline')
-           const response = await fetch(
-             `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ta&dt=t&q=${encodeURIComponent(text)}`
-           )
-           const res = await response.json()
+  const startListening = (field) => {
+    if (isListening) {
+      stopListening()
+      return
+    }
 
-           if (requestId === latestTamilRequest.current) {
-             const translated = res?.[0]?.[0]?.[0] || ''
-             translationCacheRef.current.set(cacheKey, translated)
-             setTamilName(translated)
-           }
-         } catch (error) {
-           // Offline fallback: use the local rule-based transliteration.
-           if (requestId === latestTamilRequest.current) {
-             const local = transliterateToTamil(text)
-             if (local) setTamilName(local)
-           }
-         }
-       }, 500)
-     }
+    const { ctor: SpeechRecognition, reason } = getSpeechRecognition()
+    if (!SpeechRecognition) {
+      const message = reason === VOICE_INSECURE
+        ? t('voiceRequiresHttps')
+        : t('voiceNotSupported')
+      showToast(message)
+      return
+    }
 
-    const translateToEnglish = (text) => {
-      if (!text.trim()) {
-        setProductName('')
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort() } catch (_) {}
+      recognitionRef.current = null
+    }
+
+    const showVoiceError = (code) => {
+      let message = t('voiceNotSupported')
+      if (code === 'not-allowed' || code === 'service-not-allowed') {
+        message = t('voiceRequiresHttps')
+      } else if (code === 'no-speech') {
+        message = field === 'english' ? 'No speech detected' : 'குரல் கேட்கவில்லை'
+      }
+      showToast(message)
+    }
+
+    const recognitionLanguages = field === 'tamil'
+      ? [TAMIL_VOICE_LANGUAGE]
+      : field === 'english'
+        ? [ENGLISH_VOICE_LANGUAGE]
+        : VOICE_LANGUAGES
+
+    const session = createBilingualRecognition(SpeechRecognition, {
+      onResult: (transcript, isFinal) => {
+        const tamilPhonetic = mapTamilPhonetic(transcript)
+        if (field === 'tamil') {
+          const tamilText = tamilPhonetic || (isTamilText(transcript) ? transcript : getImmediateTamilName(transcript))
+          setTamilName(tamilText)
+          if (isFinal) translateToEnglish(tamilText, 0)
+        } else {
+          const englishText = isTamilText(transcript) ? getImmediateEnglishName(transcript) : transcript
+          setProductName(englishText)
+          if (isTamilText(transcript) && isFinal) {
+            translateToEnglish(transcript, 0)
+          } else {
+            setTamilName(getImmediateTamilName(englishText))
+            if (isFinal) translateToTamil(englishText, 0)
+          }
+        }
+      },
+      onError: (event) => {
+        const code = event?.error || ''
+        if (code !== 'no-speech' && code !== 'aborted' && code !== 'network') showVoiceError(code)
+      },
+      onEnd: () => {
+        if (recognitionRef.current === session) {
+          recognitionRef.current = null
+          setListeningField(null)
+          setIsListening(false)
+        }
+      },
+    }, recognitionLanguages)
+    if (session.recognitions.length === 0) {
+      recognitionRef.current = null
+      setListeningField(null)
+      setIsListening(false)
+      return
+    }
+    recognitionRef.current = session
+    setListeningField(field)
+    setIsListening(true)
+  }
+
+  const stopListening = () => {
+    const recognition = recognitionRef.current
+    recognitionRef.current = null
+    recognition?.stop()
+    setListeningField(null)
+    setIsListening(false)
+  }
+
+  const handleVoiceToggle = (field) => {
+    if (!isSpeechSupported) return
+    if (isListening && listeningField === field) {
+      stopListening()
+    } else {
+      startListening(field)
+    }
+  }
+
+  const resetForm = () => {
+    setProductName('')
+    setTamilName('')
+    setPrice('')
+    setBarcode('')
+    setFrontPhoto(null)
+    setBackPhoto(null)
+  }
+
+  const translateToTamil = (text, delay = 500) => {
+    clearTimeout(tamilDebounceRef.current)
+    const requestId = ++latestTamilRequest.current
+    if (!text.trim()) {
+      setTamilName('')
+      return
+    }
+
+    const normalized = text.trim().toLowerCase()
+    const dictMatch = COMMON_DICTIONARY[normalized]
+    if (dictMatch) {
+      setTamilName(dictMatch)
+      return
+    }
+
+    const translate = async () => {
+      const cacheKey = `ta|${text}`
+      const cached = translationCacheRef.current.get(cacheKey)
+      if (cached !== undefined) {
+        if (requestId === latestTamilRequest.current) {
+          setTamilName(cached)
+        }
         return
       }
 
-      const requestId = ++latestEnglishRequest.current
-      clearTimeout(englishDebounceRef.current)
+      try {
+        if (!navigator.onLine) throw new Error('offline')
+        const response = await fetch(
+          `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ta&dt=t&q=${encodeURIComponent(text)}`
+        )
+        const res = await response.json()
 
-      englishDebounceRef.current = setTimeout(async () => {
-        const cacheKey = `en|${text}`
-        const cached = translationCacheRef.current.get(cacheKey)
-        if (cached !== undefined) {
-          if (requestId === latestEnglishRequest.current) {
-            setProductName(cached)
-          }
-          return
-        }
-
-        try {
-          const response = await fetch(
-            `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ta&tl=en&dt=t&q=${encodeURIComponent(text)}`
-          )
-          const res = await response.json()
-
-          if (requestId === latestEnglishRequest.current) {
-            const translated = res?.[0]?.[0]?.[0] || ''
+        if (requestId === latestTamilRequest.current) {
+          const translated = res?.[0]?.[0]?.[0] || ''
+          if (translated) {
             translationCacheRef.current.set(cacheKey, translated)
-            setProductName(translated)
+            setTamilName(translated)
+          } else {
+            const local = transliterateToTamil(text)
+            if (local) {
+              translationCacheRef.current.set(cacheKey, local)
+              setTamilName(local)
+            } else {
+              setTamilName('')
+            }
           }
-        } catch (error) {
-          console.error('Translation error:', error)
         }
-      }, 500)
+      } catch (error) {
+        if (requestId === latestTamilRequest.current) {
+          const local = transliterateToTamil(text)
+          if (local) {
+            translationCacheRef.current.set(cacheKey, local)
+            setTamilName(local)
+          } else {
+            setTamilName('')
+          }
+        }
+      }
     }
+    if (delay > 0) {
+      tamilDebounceRef.current = setTimeout(translate, delay)
+    } else {
+      tamilDebounceRef.current = null
+      translate()
+    }
+  }
+
+  const translateToEnglish = (text, delay = 500) => {
+    clearTimeout(englishDebounceRef.current)
+    const requestId = ++latestEnglishRequest.current
+    if (!text.trim()) {
+      setProductName('')
+      return
+    }
+
+    const immediateMatch = getImmediateEnglishName(text)
+    if (immediateMatch) {
+      setProductName(immediateMatch)
+      return
+    }
+
+    const translate = async () => {
+      const cacheKey = `en|${text}`
+      const cached = translationCacheRef.current.get(cacheKey)
+      if (cached !== undefined) {
+        if (requestId === latestEnglishRequest.current) {
+          setProductName(cached)
+        }
+        return
+      }
+
+      try {
+        const response = await fetch(
+          `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ta&tl=en&dt=t&q=${encodeURIComponent(text)}`
+        )
+        const res = await response.json()
+
+        if (requestId === latestEnglishRequest.current) {
+          const translated = res?.[0]?.[0]?.[0] || ''
+          translationCacheRef.current.set(cacheKey, translated)
+          setProductName(translated)
+        }
+      } catch (error) {
+        console.error('Translation error:', error)
+      }
+    }
+    if (delay > 0) {
+      englishDebounceRef.current = setTimeout(translate, delay)
+    } else {
+      englishDebounceRef.current = null
+      translate()
+    }
+  }
+
+  const handleProductNameChange = (value) => {
+    setProductName(value)
+    clearTimeout(englishDebounceRef.current)
+    latestEnglishRequest.current++
+    if (!value.trim()) {
+      setTamilName('')
+    } else {
+      setTamilName(getImmediateTamilName(value))
+    }
+    clearTimeout(tamilDebounceRef.current)
+    latestTamilRequest.current++
+  }
+
+  const handleTamilNameChange = (value) => {
+    setTamilName(value)
+    clearTimeout(tamilDebounceRef.current)
+    latestTamilRequest.current++
+    clearTimeout(englishDebounceRef.current)
+    latestEnglishRequest.current++
+    if (!value.trim()) {
+      setProductName('')
+    } else {
+      const englishName = getImmediateEnglishName(value)
+      if (englishName) {
+        setProductName(englishName)
+      } else {
+        translateToEnglish(value)
+      }
+    }
+  }
 
   const handleCameraCapture = (e, setPhoto) => {
     const file = e.target.files?.[0]
@@ -134,11 +370,7 @@ export default function AddProduct(props) {
     setPhoto(null)
   }
 
-  const { status: ocrStatus, progress: ocrProgress, fields: ocrFields, extract: extractOcr, error: ocrError, warmupOcrWorker } = useOcr()
-
-  React.useEffect(() => {
-    warmupOcrWorker().catch(() => {})
-  }, [warmupOcrWorker])
+  const { status: ocrStatus, progress: ocrProgress, fields: ocrFields, extract: extractOcr, error: ocrError } = useOcr()
 
   const handleExtractText = async () => {
     if (!frontPhoto && !backPhoto) return
@@ -146,18 +378,21 @@ export default function AddProduct(props) {
     const result = await extractOcr({ front: frontPhoto, back: backPhoto })
 
     if (!result) {
-      setToast(ocrError ? (t('ocrFailed') || 'Could not read the label. Try a clearer photo.') : (t('ocrFailed') || 'No text found'))
-      setTimeout(() => setToast(''), 3000)
+      showToast(t('ocrFailed'))
+      setTamilName(t('defaultProductName'))
       return
     }
 
+    let hasResult = false
     if (result.name) {
       setProductName(result.name)
-      setTamilName(transliterateToTamil(result.name))
+      translateToTamil(result.name)
+      hasResult = true
+    } else {
+      setTamilName(t('defaultProductName'))
     }
-    if (!result.name) {
-      setToast(t('ocrFailed') || 'Could not read the label. Try a clearer photo.')
-      setTimeout(() => setToast(''), 3000)
+    if (!hasResult) {
+      showToast(t('ocrFailed'))
     }
   }
 
@@ -171,7 +406,7 @@ export default function AddProduct(props) {
 
   const saveProduct = () => {
     const trimmedName = productName.trim()
-    const trimmedPrice = price.trim()
+    const trimmedPrice = String(price ?? '').trim()
     const numericPrice = Number(trimmedPrice)
 
     if (!trimmedName || !trimmedPrice || Number.isNaN(numericPrice) || numericPrice <= 0) {
@@ -182,8 +417,7 @@ export default function AddProduct(props) {
     const currentId = editingProduct?.id
     const existingProducts = props.existingProducts || []
     if (trimmedBarcode && existingProducts.some((p) => p.barcode === trimmedBarcode && p.id !== currentId)) {
-      setToast(t('barcodeExists'))
-      setTimeout(() => setToast(''), 3000)
+      showToast(t('barcodeExists'))
       return
     }
 
@@ -199,10 +433,10 @@ export default function AddProduct(props) {
       props.onProductSaved(savedItem, currentId)
     }
 
-    setToast(t('productSavedSuccess'))
+    showToast(t('productSavedSuccess'))
     resetForm()
 
-    setTimeout(() => {
+    navigationTimeoutRef.current = setTimeout(() => {
       setToast('')
       navigate('/add-item')
     }, 800)
@@ -354,28 +588,72 @@ export default function AddProduct(props) {
           <div className="mt-6 space-y-4">
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700 sm:text-base">{t('productName')}</label>
-               <input
-                 value={productName}
-                 onChange={(e) => {
-                   setProductName(e.target.value)
-                   translateToTamil(e.target.value)
-                 }}
-                 placeholder={t('productName')}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100 sm:text-lg"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  value={productName}
+                  onChange={(e) => handleProductNameChange(e.target.value)}
+                  placeholder={t('productName')}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-3 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100 sm:text-lg"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleVoiceToggle('english')}
+                  disabled={!isSpeechSupported}
+                  aria-label={isListening && listeningField === 'english' ? 'Stop voice input' : 'Voice input in English'}
+                  aria-pressed={isListening && listeningField === 'english'}
+                  title={
+                    !isSpeechSupported
+                      ? (voiceMessage || t('voiceNotSupported'))
+                      : isListening && listeningField === 'english'
+                        ? 'Tap to stop listening'
+                        : 'Tap to start listening'
+                  }
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border transition ${
+                    !isSpeechSupported
+                      ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+                      : isListening && listeningField === 'english'
+                        ? 'border-red-400 bg-red-500 text-white shadow-[0_0_0_4px_rgba(239,68,68,0.18)] animate-pulse hover:bg-red-600'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {isListening && listeningField === 'english' ? <MicOff size={20} /> : <Mic size={20} />}
+                </button>
+              </div>
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700 sm:text-base">{t('tamilNameOptional')}</label>
-               <input
-                 value={tamilName}
-                 onChange={(e) => {
-                   setTamilName(e.target.value)
-                   translateToEnglish(e.target.value)
-                 }}
-                 placeholder={t('tamilNameOptional')}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100 sm:text-lg"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  value={tamilName}
+                  onChange={(e) => handleTamilNameChange(e.target.value)}
+                  placeholder={t('tamilNameOptional')}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-3 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100 sm:text-lg"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleVoiceToggle('tamil')}
+                  disabled={!isSpeechSupported}
+                  aria-label={isListening && listeningField === 'tamil' ? 'Stop voice input' : 'Voice input in Tamil'}
+                  aria-pressed={isListening && listeningField === 'tamil'}
+                  title={
+                    !isSpeechSupported
+                      ? (voiceMessage || t('voiceNotSupported'))
+                      : isListening && listeningField === 'tamil'
+                        ? 'Tap to stop listening'
+                        : 'Tap to start listening'
+                  }
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border transition ${
+                    !isSpeechSupported
+                      ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+                      : isListening && listeningField === 'tamil'
+                        ? 'border-red-400 bg-red-500 text-white shadow-[0_0_0_4px_rgba(239,68,68,0.18)] animate-pulse hover:bg-red-600'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {isListening && listeningField === 'tamil' ? <MicOff size={20} /> : <Mic size={20} />}
+                </button>
+              </div>
             </div>
 
             <div>

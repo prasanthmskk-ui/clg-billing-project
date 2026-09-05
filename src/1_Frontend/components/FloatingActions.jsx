@@ -1,27 +1,63 @@
 import React from 'react'
-import { Plus, ScanLine } from 'lucide-react'
+import { Plus, ScanLine, Mic } from 'lucide-react'
+import { useLanguage } from '../i18n'
 
-export default function FloatingActions({ onScan, onAdd }) {
-  const actionButtonClass =
-    'w-[68px] h-[68px] rounded-[18px] shadow-[0_8px_18px_rgba(46,22,93,0.22)] flex items-center justify-center text-[#2E1A52]'
+function FloatingActions({ onScan, onAdd, onVoice, isListening, voiceAvailable = true, voiceMessage }) {
+  const { t } = useLanguage()
 
   return (
-    <div className="fixed right-4 bottom-28 z-20 flex flex-col items-center gap-3">
-      <button
-        onClick={onScan}
-        aria-label="scan"
-        className={`${actionButtonClass} bg-[#FF9E2C]`}
-      >
-        <ScanLine size={30} strokeWidth={2.2} />
-      </button>
+    <div className="app-floating-actions print:hidden fixed right-4 bottom-36 z-20 flex flex-col items-end gap-3">
+      {/* Scan Barcode FAB */}
+      <div className="flex items-center gap-2">
+        <span className="px-3 py-1.5 rounded-lg bg-gray-900/80 text-white text-xs font-semibold shadow-lg backdrop-blur-sm">
+          {t('scanBarcode')}
+        </span>
+        <button
+          onClick={onScan}
+          aria-label={t('scanBarcode')}
+          className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg shadow-orange-300/50 flex items-center justify-center text-white hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
+        >
+          <ScanLine size={26} strokeWidth={2.2} />
+        </button>
+      </div>
 
-      <button
-        onClick={onAdd}
-        aria-label="add item"
-        className={`${actionButtonClass} bg-[#2BCB7B]`}
-      >
-        <Plus size={34} strokeWidth={2.8} />
-      </button>
+      {/* Voice Input FAB */}
+      <div className="flex items-center gap-2">
+        <span className="px-3 py-1.5 rounded-lg bg-gray-900/80 text-white text-xs font-semibold shadow-lg backdrop-blur-sm">
+          {isListening ? t('listening') : t('voiceAdd')}
+        </span>
+        <button
+          onClick={onVoice}
+          disabled={!voiceAvailable}
+          aria-label={isListening ? t('listening') : t('voiceAdd')}
+          title={voiceAvailable ? (isListening ? t('listening') : t('voiceAdd')) : (voiceMessage || t('voiceUnavailable'))}
+          className={`w-14 h-14 rounded-2xl shadow-lg flex items-center justify-center text-white hover:shadow-xl hover:scale-105 active:scale-95 transition-all ${
+            !voiceAvailable
+              ? 'bg-gray-300 cursor-not-allowed shadow-none'
+              : isListening
+                ? 'bg-gradient-to-br from-red-500 to-red-700 shadow-red-300/50 animate-pulse ring-4 ring-red-200'
+                : 'bg-gradient-to-br from-purple-500 to-purple-700 shadow-purple-300/50'
+          }`}
+        >
+          <Mic size={26} strokeWidth={2.2} />
+        </button>
+      </div>
+
+      {/* Saved Products FAB */}
+      <div className="flex items-center gap-2">
+        <span className="px-3 py-1.5 rounded-lg bg-gray-900/80 text-white text-xs font-semibold shadow-lg backdrop-blur-sm">
+          {t('addProduct')}
+        </span>
+        <button
+          onClick={onAdd}
+          aria-label={t('addProduct')}
+          className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-300/50 flex items-center justify-center text-white hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
+        >
+          <Plus size={30} strokeWidth={2.8} />
+        </button>
+      </div>
     </div>
   )
 }
+
+export default React.memo(FloatingActions)

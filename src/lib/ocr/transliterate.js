@@ -25,16 +25,43 @@ const englishToTamilMap = {
   sha: 'சா', shi: 'சி', shu: 'சு', she: 'சே', sho: 'சோ',
   sa: 'சா', si: 'சி', su: 'சு', se: 'சே', so: 'சோ',
   ha: 'ஹா', hi: 'ஹி', hu: 'ஹு', he: 'ஹே', ho: 'ஹோ',
-  ksh: 'க்ஷ', tra: 'த்ர', dra: 'த்ர', pra: 'ப்ர', bra: 'ப்ர', shra: 'ஶ்ர',
+   ksh: 'க்ஷ', tra: 'த்ர', dra: 'த்ர', pra: 'ப்ர', bra: 'ப்ர', shra: 'ஶ்ர',
   k: 'க்', g: 'க்', c: 'ச்', ch: 'ச்', j: 'ஜ்',
   t: 'ட்', d: 'ட்', th: 'த்', dh: 'த்', n: 'ண்',
   p: 'ப்', b: 'ப்', ph: 'ப்', v: 'வ்', m: 'ம்',
   y: 'ய்', r: 'ர்', l: 'ல்', s: 'ச்', h: 'ஹ்',
+  w: 'வ்', q: 'க்', x: 'க்ஸ்', z: 'ஸ்',
+}
+
+const commonTamilTranslations = {
+  pazhanivel: 'பழனிவேல்',
+  'pazhani vel': 'பழனிவேல்',
+  milk: 'பால்',
+  rice: 'அரிசி',
+  sugar: 'சர்க்கரை',
+  salt: 'உப்பு',
+  oil: 'எண்ணெய்',
+  dal: 'பருப்பு',
+  wheat: 'கோதுமை',
+  tea: 'தேநீர்',
+  coffee: 'காபி',
+  water: 'நீர்',
+  biscuit: 'பிஸ்கட்',
+  bread: 'ரொட்டி',
+  egg: 'முட்டை',
+  chicken: 'கோழி',
+  apple: 'ஆப்பிள்',
+  banana: 'வாழை',
+  mango: 'மாம்பழம்',
+  orange: 'ஆரஞ்சு',
+  soap: 'சோப்பு',
+  shampoo: 'ஷாம்பு',
 }
 
 export function transliterateToTamil(englishText) {
   if (!englishText) return ''
   const text = englishText.toLowerCase().trim()
+  if (commonTamilTranslations[text]) return commonTamilTranslations[text]
   let result = ''
   let i = 0
   while (i < text.length) {
@@ -49,8 +76,6 @@ export function transliterateToTamil(englishText) {
       }
     }
     if (!matched) {
-      const char = text[i]
-      if (/[aeiouybwhjkmnprstdflgvz]/.test(char)) result += char
       i += 1
     }
   }
