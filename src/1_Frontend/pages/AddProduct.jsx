@@ -4,7 +4,7 @@ import { ArrowLeft, Camera, Save, ScanLine, Sparkles, X, Loader, CheckCircle, Mi
 import { useLanguage } from '../i18n'
 import { useOcr } from '../../lib/ocr/useOcr.jsx'
 import { transliterateToTamil } from '../../lib/ocr/transliterate'
-import { createBilingualRecognition, getSpeechRecognition, isTamilText, mapTamilPhonetic, TAMIL_VOICE_LANGUAGE, ENGLISH_VOICE_LANGUAGE, VOICE_INSECURE, VOICE_LANGUAGES } from '../lib/voiceRecognition'
+import { createBilingualRecognition, getSpeechRecognition, isTamilText, mapTamilPhonetic, TAMIL_VOICE_LANGUAGE, ENGLISH_VOICE_LANGUAGE, VOICE_INSECURE } from '../lib/voiceRecognition'
 
 const BarcodeScanner = React.lazy(() => import('../components/BarcodeScanner'))
 
@@ -29,6 +29,7 @@ const COMMON_DICTIONARY = {
   orange: 'ஆரஞ்சு',
   soap: 'சோப்பு',
   shampoo: 'ஷாம்பு',
+  chocolate: 'சாக்லேட்',
 }
 
 const getImmediateTamilName = (text) => {
@@ -104,11 +105,6 @@ export default function AddProduct(props) {
   }, [])
 
   const startListening = (field) => {
-    if (isListening) {
-      stopListening()
-      return
-    }
-
     const { ctor: SpeechRecognition, reason } = getSpeechRecognition()
     if (!SpeechRecognition) {
       const message = reason === VOICE_INSECURE
@@ -118,10 +114,7 @@ export default function AddProduct(props) {
       return
     }
 
-    if (recognitionRef.current) {
-      try { recognitionRef.current.abort() } catch (_) {}
-      recognitionRef.current = null
-    }
+    stopListening()
 
     const showVoiceError = (code) => {
       let message = t('voiceNotSupported')
@@ -132,12 +125,6 @@ export default function AddProduct(props) {
       }
       showToast(message)
     }
-
-    const recognitionLanguages = field === 'tamil'
-      ? [TAMIL_VOICE_LANGUAGE, ENGLISH_VOICE_LANGUAGE]
-      : field === 'english'
-        ? [ENGLISH_VOICE_LANGUAGE, TAMIL_VOICE_LANGUAGE]
-        : VOICE_LANGUAGES
 
     const session = createBilingualRecognition(SpeechRecognition, {
       onResult: (transcript, isFinal) => {
@@ -168,7 +155,7 @@ export default function AddProduct(props) {
           setIsListening(false)
         }
       },
-    }, recognitionLanguages)
+    }, [field === 'tamil' ? TAMIL_VOICE_LANGUAGE : ENGLISH_VOICE_LANGUAGE])
     if (session.recognitions.length === 0) {
       recognitionRef.current = null
       setListeningField(null)
@@ -193,6 +180,7 @@ export default function AddProduct(props) {
     if (isListening && listeningField === field) {
       stopListening()
     } else {
+      if (isListening) stopListening()
       startListening(field)
     }
   }

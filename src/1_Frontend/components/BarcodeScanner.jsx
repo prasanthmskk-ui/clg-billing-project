@@ -95,16 +95,16 @@ function BarcodeScanner({ isOpen, onClose, onScan }) {
             });
           } catch (fallbackErr) {
             if (!scanningRef.current) return;
-            setErrorMsg(
-              "Unable to access camera: " +
-                (fallbackErr.message || String(fallbackErr))
-            );
+              setErrorMsg(
+                "Unable to access camera: " +
+                  (fallbackErr?.message || String(fallbackErr))
+              );
             return;
           }
         } else {
           setErrorMsg(
             "Unable to access camera: " +
-              (cameraErr.message || String(cameraErr))
+              (cameraErr?.message || String(cameraErr))
           );
           return;
         }

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Plus, ScanLine, Mic } from 'lucide-react'
+import { Plus, ScanLine, Mic, MicOff } from 'lucide-react'
 import { useLanguage } from '../i18n'
 
 function FloatingActions({ onScan, onAdd, onVoice, isListening, voiceAvailable = true, voiceMessage }) {
@@ -30,6 +30,7 @@ function FloatingActions({ onScan, onAdd, onVoice, isListening, voiceAvailable =
           onClick={onVoice}
           disabled={!voiceAvailable}
           aria-label={isListening ? t('listening') : t('voiceAdd')}
+          aria-pressed={isListening}
           title={voiceAvailable ? (isListening ? t('listening') : t('voiceAdd')) : (voiceMessage || t('voiceUnavailable'))}
           className={`w-14 h-14 rounded-2xl shadow-lg flex items-center justify-center text-white hover:shadow-xl hover:scale-105 active:scale-95 transition-all ${
             !voiceAvailable
@@ -39,7 +40,7 @@ function FloatingActions({ onScan, onAdd, onVoice, isListening, voiceAvailable =
                 : 'bg-gradient-to-br from-purple-500 to-purple-700 shadow-purple-300/50'
           }`}
         >
-          <Mic size={26} strokeWidth={2.2} />
+          {isListening ? <MicOff size={26} strokeWidth={2.2} /> : <Mic size={26} strokeWidth={2.2} />}
         </button>
       </div>
 

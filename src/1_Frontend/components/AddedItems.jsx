@@ -20,10 +20,18 @@ function AddedItems({ items, onDelete, onUpdateQuantity }) {
   return (
     <div className="space-y-3">
       {items.map((item, index) => (
-        <div
-          key={`${item.id}-${index}`}
-          className="billing-cart-item rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm"
-        >
+          <div
+            key={`${item.id}-${index}`}
+            className="billing-cart-item relative rounded-2xl border border-slate-200 bg-slate-50 p-4 pr-12 sm:pr-32 shadow-sm"
+          >
+          <button
+            type="button"
+            onClick={() => onDelete(item.id)}
+            aria-label={t('delete')}
+            className="absolute top-3 right-3 z-30 flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-red-500 transition hover:bg-red-100"
+          >
+            <Trash2 size={16} />
+          </button>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
               <h3 className="text-lg font-bold text-slate-900 uppercase tracking-wide truncate">
@@ -36,7 +44,7 @@ function AddedItems({ items, onDelete, onUpdateQuantity }) {
                 <p className="text-xs text-slate-400 mt-0.5">#{item.barcode}</p>
               )}
               <p className="text-sm text-slate-500 mt-1">
-                Unit Price: ₹{Number(item.price).toFixed(2)}
+                Unit Price: ₹{Number(item.price || 0).toFixed(2)}
               </p>
             </div>
 
@@ -63,20 +71,9 @@ function AddedItems({ items, onDelete, onUpdateQuantity }) {
                 </button>
               </div>
               <div className="text-base sm:text-lg font-bold text-slate-900 whitespace-nowrap">
-                ₹{Number(item.price * (item.quantity || 1)).toFixed(2)}
+                ₹{(Number(item.price || 0) * (item.quantity || 1)).toFixed(2)}
               </div>
             </div>
-          </div>
-
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() => onDelete(item.id)}
-              aria-label={t('delete')}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-red-500 transition hover:bg-red-100"
-            >
-              <Trash2 size={16} />
-            </button>
           </div>
         </div>
       ))}

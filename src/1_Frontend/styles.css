@@ -25,7 +25,6 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  overscroll-behavior-y: none;
 }
 
 img {
@@ -75,9 +74,7 @@ img {
 
 main {
   min-width: 0;
-  contain: layout paint;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
 }
 
 .route-loading {
@@ -396,7 +393,7 @@ textarea {
 
   .app-shell {
     height: 100dvh;
-    min-height: 100dvh;
+    overflow: hidden;
   }
 
   .app-shell > .flex-1,
@@ -406,8 +403,8 @@ textarea {
   }
 
   .app-shell > .flex-1 {
-    overscroll-behavior-y: contain;
-    -webkit-overflow-scrolling: touch;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .app-header,

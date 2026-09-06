@@ -27,7 +27,7 @@ export default function SavedReceipts() {
         const usingLocalFallback = response.headers.get('X-Database-Fallback') === 'local'
         setReceipts(usingLocalFallback ? getLocalStorageReceipts() : (Array.isArray(data) ? data : []))
       } catch (err) {
-        console.warn('Server unavailable; loading receipts from LocalStorage:', err.message)
+        console.warn('Server unavailable; loading receipts from LocalStorage:', err?.message)
         setReceipts(getLocalStorageReceipts())
         setServerUnavailable(true)
       } finally {
@@ -48,7 +48,7 @@ export default function SavedReceipts() {
         setReceipts(usingLocalFallback ? getLocalStorageReceipts() : (Array.isArray(data) ? data : []))
       })
       .catch((err) => {
-        console.warn('Retry failed:', err.message)
+        console.warn('Retry failed:', err?.message)
         setReceipts(getLocalStorageReceipts())
         setServerUnavailable(true)
       })
@@ -195,7 +195,7 @@ export default function SavedReceipts() {
                         >
                           <span className="text-slate-900">{item.product_name}</span>
                           <span className="text-slate-600">
-                            {item.quantity} x ₹{Number(item.price).toFixed(2)} = ₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}
+                            {item.quantity} x ₹{Number(item.price || 0).toFixed(2)} = ₹{(Number(item.price || 0) * Number(item.quantity)).toFixed(2)}
                           </span>
                         </div>
                       ))}
