@@ -1,1 +1,19 @@
-{"rewrites": [{"source": "/((?!api(?:/|$)).*)", "destination": "/index.html"}]}
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "src/2_Backend/app.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/src/2_Backend/app.py"
+    },
+    {
+      "source": "/((?!api(?:/|$)).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
