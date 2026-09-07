@@ -4,7 +4,7 @@ import { ArrowLeft, Camera, Save, ScanLine, Sparkles, X, Loader, CheckCircle, Mi
 import { useLanguage } from '../i18n'
 import { useOcr } from '../../lib/ocr/useOcr.jsx'
 import { transliterateToTamil } from '../../lib/ocr/transliterate'
-import { createBilingualRecognition, getSpeechRecognition, isTamilText, mapTamilPhonetic, TAMIL_VOICE_LANGUAGE, ENGLISH_VOICE_LANGUAGE, VOICE_INSECURE } from '../lib/voiceRecognition'
+import { createBilingualRecognition, getSpeechRecognition, isTamilText, mapTamilPhonetic, VOICE_INSECURE } from '../lib/voiceRecognition'
 
 const BarcodeScanner = React.lazy(() => import('../components/BarcodeScanner'))
 
@@ -29,7 +29,6 @@ const COMMON_DICTIONARY = {
   orange: 'ஆரஞ்சு',
   soap: 'சோப்பு',
   shampoo: 'ஷாம்பு',
-  chocolate: 'சாக்லேட்',
 }
 
 const getImmediateTamilName = (text) => {
@@ -71,6 +70,8 @@ export default function AddProduct(props) {
   const recognitionRef = React.useRef(null)
   const toastTimeoutRef = React.useRef(null)
   const navigationTimeoutRef = React.useRef(null)
+  const voiceTamilTextRef = React.useRef(tamilName)
+  const voiceEnglishTextRef = React.useRef(productName)
   const [isListening, setIsListening] = React.useState(false)
   const [listeningField, setListeningField] = React.useState(null)
 
@@ -105,6 +106,11 @@ export default function AddProduct(props) {
   }, [])
 
   const startListening = (field) => {
+    if (isListening) {
+      stopListening()
+      return
+    }
+
     const { ctor: SpeechRecognition, reason } = getSpeechRecognition()
     if (!SpeechRecognition) {
       const message = reason === VOICE_INSECURE
@@ -114,7 +120,10 @@ export default function AddProduct(props) {
       return
     }
 
-    stopListening()
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort() } catch (_) {}
+      recognitionRef.current = null
+    }
 
     const showVoiceError = (code) => {
       let message = t('voiceNotSupported')
@@ -131,17 +140,19 @@ export default function AddProduct(props) {
         const tamilPhonetic = mapTamilPhonetic(transcript)
         if (field === 'tamil') {
           const tamilText = tamilPhonetic || (isTamilText(transcript) ? transcript : getImmediateTamilName(transcript))
-          setTamilName(tamilText)
-          if (isFinal) translateToEnglish(tamilText, 0)
+          if (!isFinal) return
+          const next = `${voiceTamilTextRef.current} ${tamilText}`.trim()
+          voiceTamilTextRef.current = next
+          setTamilName(next)
+          translateToEnglish(next, 0)
         } else {
           const englishText = isTamilText(transcript) ? getImmediateEnglishName(transcript) : transcript
-          setProductName(englishText)
-          if (isTamilText(transcript) && isFinal) {
-            translateToEnglish(transcript, 0)
-          } else {
-            setTamilName(getImmediateTamilName(englishText))
-            if (isFinal) translateToTamil(englishText, 0)
-          }
+          if (!isFinal) return
+          const next = `${voiceEnglishTextRef.current} ${englishText}`.trim()
+          voiceEnglishTextRef.current = next
+          setProductName(next)
+          if (isTamilText(transcript)) translateToEnglish(transcript, 0)
+          else translateToTamil(englishText, 0)
         }
       },
       onError: (event) => {
@@ -155,7 +166,7 @@ export default function AddProduct(props) {
           setIsListening(false)
         }
       },
-    }, [field === 'tamil' ? TAMIL_VOICE_LANGUAGE : ENGLISH_VOICE_LANGUAGE])
+    })
     if (session.recognitions.length === 0) {
       recognitionRef.current = null
       setListeningField(null)
@@ -180,12 +191,13 @@ export default function AddProduct(props) {
     if (isListening && listeningField === field) {
       stopListening()
     } else {
-      if (isListening) stopListening()
       startListening(field)
     }
   }
 
   const resetForm = () => {
+    voiceEnglishTextRef.current = ''
+    voiceTamilTextRef.current = ''
     setProductName('')
     setTamilName('')
     setPrice('')
@@ -309,6 +321,7 @@ export default function AddProduct(props) {
   }
 
   const handleProductNameChange = (value) => {
+    voiceEnglishTextRef.current = value
     setProductName(value)
     clearTimeout(englishDebounceRef.current)
     latestEnglishRequest.current++
@@ -322,6 +335,7 @@ export default function AddProduct(props) {
   }
 
   const handleTamilNameChange = (value) => {
+    voiceTamilTextRef.current = value
     setTamilName(value)
     clearTimeout(tamilDebounceRef.current)
     latestTamilRequest.current++
@@ -461,14 +475,14 @@ export default function AddProduct(props) {
       </header>
 
       {toast && (
-        <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#1fbf68] px-6 py-3 text-sm font-semibold text-white shadow-lg flex items-center gap-2">
+        <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2 max-w-[90vw] rounded-full bg-[#1fbf68] px-6 py-3 text-sm font-semibold text-white shadow-lg flex items-center gap-2">
           <CheckCircle size={18} />
           {toast}
         </div>
       )}
 
       {/* Scrollable Content */}
-      <main className="w-full overflow-y-auto px-4 py-6">
+      <main className="w-full px-4 py-6">
         <div className="mx-auto max-w-2xl">
           {/* Smart Auto-Fill Section */}
           <section className="rounded-[24px] border border-[#dfeaff] bg-[#edf5ff] p-4 shadow-sm shadow-blue-100/60">

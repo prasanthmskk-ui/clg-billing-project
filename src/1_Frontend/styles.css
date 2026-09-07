@@ -392,8 +392,9 @@ textarea {
   }
 
   .app-shell {
-    height: 100dvh;
-    overflow: hidden;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
   }
 
   .app-shell > .flex-1,
@@ -403,8 +404,8 @@ textarea {
   }
 
   .app-shell > .flex-1 {
-    min-height: 0;
-    overflow-y: auto;
+    min-height: auto;
+    overflow: visible;
   }
 
   .app-header,

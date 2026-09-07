@@ -2,20 +2,17 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, PackagePlus, Check, Pencil, Search, X, Mic } from 'lucide-react'
 import { useLanguage } from '../i18n'
-import { createBilingualRecognition, getSpeechRecognition, getVoiceLanguages, normalizeVoiceText, VOICE_INSECURE } from '../lib/voiceRecognition'
+import { createBilingualRecognition, getSpeechRecognition, VOICE_INSECURE } from '../lib/voiceRecognition'
 import { addOrIncrementCart } from '../utils/cart'
 
 export default function AddItem({ savedItems, setSavedItems, setCart }) {
   const navigate = useNavigate()
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
 
   const [searchQuery, setSearchQuery] = React.useState('')
   const deferredSearchQuery = React.useDeferredValue(searchQuery)
   const [isListening, setIsListening] = React.useState(false)
   const recognitionRef = React.useRef(null)
-  const debounceTimerRef = React.useRef(null)
-  const pendingResultRef = React.useRef(null)
-  const isListeningRef = React.useRef(false)
   const voiceSupport = React.useMemo(() => getSpeechRecognition(), [])
   const voiceAvailable = voiceSupport.ctor !== null
   const voiceMessage = !voiceAvailable
@@ -50,6 +47,44 @@ export default function AddItem({ savedItems, setSavedItems, setCart }) {
     navigate('/new-receipt')
   }, [navigate])
 
+  const startListening = React.useCallback(() => {
+    if (!voiceAvailable) {
+      window.alert(voiceMessage || t('voiceNotSupported'))
+      return
+    }
+    const { ctor: SpeechRecognition } = getSpeechRecognition()
+    if (!SpeechRecognition) {
+      setIsListening(false)
+      window.alert(t('voiceNotSupported'))
+      return
+    }
+    const session = createBilingualRecognition(SpeechRecognition, {
+      onResult: (transcript, isFinal) => {
+        if (!isFinal) return
+        setSearchQuery((previous) => `${previous} ${transcript}`.trim())
+      },
+      onError: () => setIsListening(false),
+      onEnd: () => setIsListening(false),
+    })
+    recognitionRef.current = session
+    setIsListening(session.recognitions.length > 0)
+  }, [voiceAvailable, voiceMessage, t])
+
+  const stopListening = React.useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+      setIsListening(false)
+    }
+  }, [])
+
+  React.useEffect(() => () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch (_) {}
+      recognitionRef.current = null
+    }
+  }, [])
+
   const clearSearch = React.useCallback(() => setSearchQuery(''), [])
 
   const displayedItems = React.useMemo(() => {
@@ -73,113 +108,6 @@ export default function AddItem({ savedItems, setSavedItems, setCart }) {
 
     return [...exact, ...partial]
   }, [savedItems, deferredSearchQuery])
-
-  const resetListeningState = React.useCallback(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-      debounceTimerRef.current = null
-    }
-    pendingResultRef.current = null
-    recognitionRef.current = null
-    isListeningRef.current = false
-    setIsListening(false)
-  }, [])
-
-  const stopListening = React.useCallback(() => {
-    const recognition = recognitionRef.current
-    recognitionRef.current = null
-    if (recognition) {
-      try {
-        recognition.stop()
-      } catch (_) {
-        // ignore stop errors
-      }
-    }
-    resetListeningState()
-  }, [resetListeningState])
-
-  const startListening = React.useCallback(() => {
-    if (!voiceAvailable) {
-      window.alert(voiceMessage || t('voiceNotSupported'))
-      return
-    }
-    if (isListeningRef.current || recognitionRef.current) {
-      return
-    }
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-      debounceTimerRef.current = null
-    }
-    pendingResultRef.current = null
-
-    const { ctor: SpeechRecognition } = getSpeechRecognition()
-    if (!SpeechRecognition) {
-      window.alert(t('voiceNotSupported'))
-      return
-    }
-
-    const session = createBilingualRecognition(SpeechRecognition, {
-      onResult: (transcript, isFinal) => {
-        if (debounceTimerRef.current) {
-          clearTimeout(debounceTimerRef.current)
-        }
-        const englishText = normalizeVoiceText(transcript)
-        pendingResultRef.current = englishText
-        if (isFinal) {
-          debounceTimerRef.current = setTimeout(() => {
-            setSearchQuery(pendingResultRef.current)
-            debounceTimerRef.current = null
-            pendingResultRef.current = null
-            resetListeningState()
-          }, 150)
-        } else {
-          debounceTimerRef.current = setTimeout(() => {
-            setSearchQuery(pendingResultRef.current)
-            debounceTimerRef.current = null
-          }, 500)
-        }
-      },
-      onError: () => {
-        if (debounceTimerRef.current) {
-          clearTimeout(debounceTimerRef.current)
-          debounceTimerRef.current = null
-        }
-        pendingResultRef.current = null
-        resetListeningState()
-      },
-      onEnd: () => {
-        if (recognitionRef.current === session) {
-          if (pendingResultRef.current) {
-            setSearchQuery(pendingResultRef.current)
-            pendingResultRef.current = null
-          }
-          resetListeningState()
-        }
-      },
-    }, getVoiceLanguages(language))
-    recognitionRef.current = session
-    isListeningRef.current = session.recognitions.length > 0
-    setIsListening(session.recognitions.length > 0)
-  }, [language, voiceAvailable, voiceMessage, t, resetListeningState])
-
-  const handleVoiceToggle = React.useCallback(() => {
-    if (isListeningRef.current) {
-      stopListening()
-    } else {
-      startListening()
-    }
-  }, [startListening, stopListening])
-
-  React.useEffect(() => () => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-    }
-    const recognition = recognitionRef.current
-    recognitionRef.current = null
-    if (recognition) {
-      try { recognition.stop() } catch (_) {}
-    }
-  }, [])
 
   return (
     <div className="min-h-screen w-full bg-[#f7f5fb] text-slate-800">
@@ -205,7 +133,7 @@ export default function AddItem({ savedItems, setSavedItems, setCart }) {
         </button>
       </header>
 
-      <main className="w-full overflow-y-auto px-4 py-6">
+      <main className="w-full px-4 py-6">
         <div className="mx-auto max-w-2xl">
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -214,7 +142,7 @@ export default function AddItem({ savedItems, setSavedItems, setCart }) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('searchProducts')}
-              className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-24 py-3 text-base focus:border-violet-300 focus:ring-2 focus:ring-violet-100 outline-none transition"
+               className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-20 py-3 text-base focus:border-violet-300 focus:ring-2 focus:ring-violet-100 outline-none transition sm:pr-24"
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
               {searchQuery && (
@@ -229,7 +157,7 @@ export default function AddItem({ savedItems, setSavedItems, setCart }) {
               )}
               <button
                 type="button"
-                onClick={handleVoiceToggle}
+                onClick={isListening ? stopListening : startListening}
                 disabled={!voiceAvailable}
                 aria-label={isListening ? t('listening') : t('voiceSearch')}
                 title={voiceAvailable ? t('voiceSearch') : (voiceMessage || t('voiceUnavailable'))}
@@ -278,9 +206,9 @@ export default function AddItem({ savedItems, setSavedItems, setCart }) {
                     {item.barcode && (
                       <p className="text-xs text-slate-400 mt-1">#{item.barcode}</p>
                     )}
-                    <p className="text-base font-bold text-slate-900 mt-1">₹{Number(item.price || 0).toFixed(2)}</p>
+                    <p className="text-base font-bold text-slate-900 mt-1">₹{Number(item.price).toFixed(2)}</p>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
+                  <div                   className="flex items-center gap-2 ml-2 sm:ml-4">
                     <button
                       type="button"
                       onClick={() => handleEditSaved(item)}
